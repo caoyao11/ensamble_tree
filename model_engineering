@@ -1,0 +1,190 @@
+'''
+   开发人员: guojunlong 00020540
+   功能: 集成模型部署代码
+   时间: 2021.12.18
+   要求:
+'''
+
+include_str = """
+#include <math.h>
+
+#define NORM_SCORE 10000
+"""
+
+DTActivityClassify = """
+signed char DTActivityClassify(const short *x, const signed char index[], const short value[],
+                               short length, short *confidence)
+{
+    short i = 0;
+    short j = 0;
+    short negative = 0;
+    short positive = 0;
+    signed char isfind;
+
+    *confidence = 0;
+
+    do {
+        if (index[i] < 0) {
+            *confidence = value[i];
+            return -index[i];
+        } else if (x[index[i]] <= value[i]) {
+            i++;
+        } else {
+            j = 0;
+            positive = 0;
+            negative = 0;
+            isfind = 0;
+            do {
+                j++;
+                if (index[i + j] >= 0) {
+                    positive++;
+                } else {
+                    negative++;
+                }
+                if (negative > positive) {
+                    i += positive + negative + 1;
+                    isfind = 1;
+                    break;
+                }
+            } while (j < length);
+
+            if (isfind == 0) {
+                break;
+            }
+        }
+    } while (i < length);
+    return 0;
+}"""
+
+RF_engineering = """
+//example
+unsigned short GetHighWayProbRandomForest(void){
+    short index;
+    int sum_positive_prob = 0;
+    short positive_prob = 0;
+    unsigned short proba = 0;
+    const short *feat = GetVehicleFeat();
+    //const short feat[114] = {2039,2731,2045,0,20,6,-49,999,430,450,122,50,361,78,262,159,88,100,2620,25,419,7180,10684,25709,21,960,0,10,377,0,0,0,44,11,31,1890,20,30,648,-475,0,0,42,8,265,2,8141,1097,289,357,403,484,388,327,268,1038,1021,7,2017,2068,20,40,402,18156,307,245,0,105,5,9,35,-15,-1576,18405,17408,0,9,12843,0,0,0,4,0,25074,28809,36,21,17461,20353,0,0,2,1,45,13,28,1,41,2,49,37,12,45,0,0,0,0,0,3,4,5,5,8,10};
+
+    for (index = 0; index < NUM_OF_RANDOM_FOREST_TREE; index++) {
+        if (DTActivityClassify(feat, g_RandomForestTreeHIGHWAYIndex[index], g_RandomForestTreeHIGHWAYValue[index], NUM_OF_RANDOM_FOREST_NODE, &positive_prob)) {
+            sum_positive_prob = sum_positive_prob + positive_prob;
+        }
+    }
+    
+    proba = (unsigned short)(((float)sum_positive_prob) / NUM_OF_RANDOM_FOREST_TREE);
+
+    return proba;
+}"""
+
+GDBT_engineering = """
+//example
+unsigned short GetHighWayProbGBDT(void) {
+    short index;
+    int sum_positive_value = g_GDBTTreeHIGHWAYF0Value;
+    short positive_value = 0;
+    unsigned short proba = 0;
+    //const short *feat = GetVehicleFeat();
+    const short feat[114] = {2039,2731,2045,0,20,6,-49,999,430,450,122,50,361,78,262,159,88,100,2620,25,419,7180,10684,25709,21,960,0,10,377,0,0,0,44,11,31,1890,20,30,648,-475,0,0,42,8,265,2,8141,1097,289,357,403,484,388,327,268,1038,1021,7,2017,2068,20,40,402,18156,307,245,0,105,5,9,35,-15,-1576,18405,17408,0,9,12843,0,0,0,4,0,25074,28809,36,21,17461,20353,0,0,2,1,45,13,28,1,41,2,49,37,12,45,0,0,0,0,0,3,4,5,5,8,10};
+
+    for (index = 0; index < NUM_OF_GDBT_TREE; index++) {
+        if (DTActivityClassify(feat, g_GDBTTreeHIGHWAYIndex[index], g_GDBTTreeHIGHWAYValue[index], NUM_OF_GDBT_NODE, &positive_value)) {
+            sum_positive_value = sum_positive_value + positive_value;
+        }
+    }
+    proba = (unsigned short)(NORM_SCORE *(1.0 / (1.0 + exp(-((double)sum_positive_value)/ NORM_SCORE)))); //sigmod
+    return proba;
+}"""
+
+AdaBoost_engineering = """
+//example
+unsigned short GetHighWayProbAdaBoost(void){
+    short index;
+    short positive_prob = 0;
+    double log_proba = 0;
+    float weights_sum = 0.0;
+    unsigned short proba = 0;
+    const short *feat = GetVehicleFeat();
+    //const short feat[114] = {2039,2731,2045,0,20,6,-49,999,430,450,122,50,361,78,262,159,88,100,2620,25,419,7180,10684,25709,21,960,0,10,377,0,0,0,44,11,31,1890,20,30,648,-475,0,0,42,8,265,2,8141,1097,289,357,403,484,388,327,268,1038,1021,7,2017,2068,20,40,402,18156,307,245,0,105,5,9,35,-15,-1576,18405,17408,0,9,12843,0,0,0,4,0,25074,28809,36,21,17461,20353,0,0,2,1,45,13,28,1,41,2,49,37,12,45,0,0,0,0,0,3,4,5,5,8,10};
+
+    for (index = 0; index < NUM_OF_ADABOOST_TREE; index++) {
+        if (DTActivityClassify(feat, g_AdaBoostTreeHIGHWAYIndex[index], g_AdaBoostTreeHIGHWAYValue[index], NUM_OF_ADABOOST_NODE, &positive_prob)) {
+            positive_prob = positive_prob ?  positive_prob : PROB_1;
+            positive_prob = (NORM_SCORE > positive_prob) ? positive_prob : PROB_9999;
+            if (g_sammeRFlag) {
+                log_proba = log_proba + log((double)positive_prob / (NORM_SCORE - positive_prob)); //log_proba + (log(positive_prob) - 0.5*(log(positive_prob) + log(1.0 - positive_prob)))
+            } else {
+                log_proba = (PROB_5000 > positive_prob) ? (log_proba - g_AdaBoostTreeHIGHWAYWeight[index]) : (log_proba + g_AdaBoostTreeHIGHWAYWeight[index]); // sum(0.5*lables*weights), lable value is -1 or 1
+            }
+        }
+        weights_sum = weights_sum + g_AdaBoostTreeHIGHWAYWeight[index];
+    }
+    
+    log_proba = log_proba / weights_sum;
+    proba = (unsigned short)(NORM_SCORE *(1.0 / (1.0 + exp(-log_proba)))); //softmax, log_proba has muti 2
+
+    return proba;
+}
+"""
+
+XGBoost_engineering = """
+//example
+unsigned short GetHighWayProbXGBooast(void) {
+    short index;
+    int sum_positive_value = 0;
+    short positive_value = 0;
+    unsigned short proba = 0;
+    //const short *feat = GetVehicleFeat();
+    const short feat[114] = { 2039,2731,2045,0,20,6,-49,999,430,450,122,50,361,78,55,159,88,100,2620,25,419,7180,10684,25709,21,960,0,10,377,0,0,0,44,11,31,1890,20,30,648,-475,0,0,42,8,265,2,8141,1097,289,357,403,484,388,327,268,1038,1021,7,2017,2068,20,40,402,18156,307,245,0,105,5,9,35,-15,-1576,18405,17408,0,9,12843,0,0,0,4,0,25074,28809,36,21,17461,20353,0,0,2,1,45,13,28,1,41,2,49,37,12,45,0,0,0,0,0,3,4,5,5,8,10 };
+
+    for (index = 0; index < NUM_OF_XGBOOST_TREE; index++) {
+        if (DTActivityClassify(feat, g_XGBoostTreeHIGHWAYIndex[index], g_XGBoostTreeHIGHWAYValue[index], NUM_OF_XGBOOST_NODE, &positive_value)) {
+            sum_positive_value = sum_positive_value + positive_value;
+        }
+    }
+    proba = (unsigned short)(NORM_SCORE *(1.0 / (1.0 + exp(-((double)sum_positive_value) / NORM_SCORE)))); //sigmod
+    return proba;
+}
+"""
+
+lightGBM_engineering = """
+//example
+unsigned short GetHighWayProbLightGBM(void) {
+    short index;
+    int sum_positive_value = 0;
+    short positive_value = 0;
+    unsigned short proba = 0;
+    //const short *feat = GetVehicleFeat();
+    const short feat[114] = { 2039,2731,2045,0,20,6,-49,999,430,450,122,50,361,78,55,159,88,100,2620,25,419,7180,10684,25709,21,960,0,10,377,0,0,0,44,11,31,1890,20,30,648,-475,0,0,42,8,265,2,8141,1097,289,357,403,484,388,327,268,1038,1021,7,2017,2068,20,40,402,18156,307,245,0,105,5,9,35,-15,-1576,18405,17408,0,9,12843,0,0,0,4,0,25074,28809,36,21,17461,20353,0,0,2,1,45,13,28,1,41,2,49,37,12,45,0,0,0,0,0,3,4,5,5,8,10 };
+
+    for (index = 0; index < NUM_OF_LIGHTGBM_TREE; index++) {
+        if (DTActivityClassify(feat, g_lightGBMTreeHIGHWAYIndex[index], g_lightGBMTreeHIGHWAYValue[index], NUM_OF_LIGHTGBM_NODE, &positive_value)) {
+            sum_positive_value = sum_positive_value + positive_value;
+        }
+    }
+    proba = (unsigned short)(NORM_SCORE *(1.0 / (1.0 + exp(-((double)sum_positive_value) / NORM_SCORE)))); //sigmod
+    return proba;
+}
+"""
+
+catBoost_engineering = """
+//example
+unsigned short GetHighWayProbCatBoost(void) {
+    short index;
+    int sum_positive_value = 0;
+    short positive_value = 0;
+    unsigned short proba = 0;
+    //const short *feat = GetVehicleFeat();
+    const short feat[114] = { 2039,2731,2045,0,20,6,-49,999,430,450,122,50,361,78,55,159,88,100,2620,25,419,7180,10684,25709,21,960,0,10,377,0,0,0,44,11,31,1890,20,30,648,-475,0,0,42,8,265,2,8141,1097,289,357,403,484,388,327,268,1038,1021,7,2017,2068,20,40,402,18156,307,245,0,105,5,9,35,-15,-1576,18405,17408,0,9,12843,0,0,0,4,0,25074,28809,36,21,17461,20353,0,0,2,1,45,13,28,1,41,2,49,37,12,45,0,0,0,0,0,3,4,5,5,8,10 };
+
+    for (index = 0; index < NUM_OF_CATBOOST_TREE; index++) {
+        if (DTActivityClassify(feat, g_catBoostTreeHIGHWAYIndex[index], g_catBoostTreeHIGHWAYValue[index], NUM_OF_CATBOOST_NODE, &positive_value)) {
+            sum_positive_value = sum_positive_value + positive_value;
+        }
+    }
+    proba = (unsigned short)(NORM_SCORE *(1.0 / (1.0 + exp(-((double)sum_positive_value) / NORM_SCORE)))); //sigmod
+    return proba;
+}
+
+"""
+
