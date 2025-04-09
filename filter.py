@@ -1,6 +1,38 @@
 #include "securec.h"
 #include "spo2_common.h"
 #include "spo2_filtfilt.h"
+#define SPO2_ALG_VERSION   0x01
+
+#define RAD_TO_DEG  (57.2958f)
+
+#define PPG_SAMPLE_RATE    (4)
+#define PPG_CALC_FREQ      (25)
+#define PPG_MEAN_LEN     (6)
+#define PPG_DC_MAX         (100000000)
+#define PPG_DC_MIN         (1000)
+#define PPG_FILT_LEN    (PPG_CALC_FREQ * PPG_MEAN_LEN)
+#define PPG_FILT_MOV_LENGTH  (2 * PPG_CALC_FREQ)
+#define PPG_FILT_OVERLAP_LENGTH     (PPG_FILT_LEN -PPG_FILT_MOV_LENGTH)
+#define PPG_MAX_FEAT_LEN (PPG_FILT_LEN / 6)  // <240bpm
+#define PPG_FLITFLIT_ORDER  (6)
+#define PPG_FLITFLIT_EXTRALEN (3 * PPG_FLITFLIT_ORDER)
+#define PPG_FLITFLIT_LEN  (PPG_FILT_LEN + 2 * PPG_FLITFLIT_EXTRALEN)
+
+#define PPG_OVERLAP_LENGTH (PPG_CALC_FREQ * 3)
+#define PPG_FFT_LENGTH     (128)
+#define PPG_FFTBUFFER_LEN (PPG_FFT_LENGTH * 2 + 1)
+#define SPO2_MEM_BUFF_SIZE (1500)
+
+#ifndef LOG_FOR_SPO2ALG
+#define LOG_FOR_SPO2ALG       18              /* log for algorithm module */
+#endif // !LOG_FOR_ALG
+
+#ifndef MIN
+#define MIN(x,y) ((x) < (y) ? (x) : (y))
+#endif
+#ifndef MAX
+#define MAX(x,y) ((x) > (y) ? (x) : (y))
+#endif
 
 /* Bandpass filter 0.5-3Hz,Fs=25Hz*/
 static float b[PPG_FLITFLIT_ORDER + 1] = { 0.0180989330075144f, 0.0f, -0.0542967990225433f, 0.0f, 0.0542967990225433f, 0.0f, -0.0180989330075144f };
